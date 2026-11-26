@@ -6,7 +6,7 @@ PYTHON ?= python3
 VENV   ?= .venv
 VPY    := $(VENV)/bin
 
-.PHONY: help venv lint format-check typecheck test shellcheck js-lint check clean
+.PHONY: help venv lint format-check typecheck test shellcheck js-lint js-test check clean
 
 help:
 	@echo "Targets:"
@@ -16,6 +16,7 @@ help:
 	@echo "  test         pytest"
 	@echo "  shellcheck   ShellCheck on tracked shell scripts"
 	@echo "  js-lint      ESLint (JavaScript)"
+	@echo "  js-test      Node unit tests for JavaScript logic"
 	@echo "  check        Run every quality gate"
 	@echo "  clean        Remove caches and .venv"
 
@@ -49,7 +50,10 @@ js-lint:
 	npm ci --no-audit --no-fund
 	npx eslint .
 
-check: lint typecheck test shellcheck js-lint
+js-test:
+	node --test tests/js/pinned-apps.test.mjs
+
+check: lint typecheck test shellcheck js-lint js-test
 	@echo "All quality gates passed."
 
 clean:

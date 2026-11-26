@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.treeos.shell.dock" path="/org/treeos/shell/dock/">
+    <key name="pinned-apps" type="as">
+      <default>[]</default>
+      <summary>Pinned applications</summary>
+      <description>
+        Desktop-file IDs of pinned applications, in display order, for example
+        "org.gnome.Nautilus.desktop". Entries that are not installed are kept
+        and shown as unavailable.
+      </description>
+    </key>
+  </schema>
+</schemalist>

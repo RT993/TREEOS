@@ -14,4 +14,14 @@ export default [
       sourceType: "module",
     },
   },
+  {
+    // GNOME Shell extension code runs in GJS, which provides console.* globals
+    // and gi:// / resource:// module specifiers. No Node globals are assumed.
+    files: ["desktop/**/*.js"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+      },
+    },
+  },
 ];
