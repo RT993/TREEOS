@@ -1,0 +1,33 @@
+/* TREE dock styles. Colours are placeholders until the TREE design tokens exist
+   (CLAUDE.md section 8). No transitions are used, so reduced-motion settings are
+   respected by default. */
+
+.tree-dock {
+  background-color: rgba(30, 30, 34, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 6px 10px;
+  spacing: 6px;
+}
+
+.tree-dock-item {
+  padding: 4px;
+  border-radius: 12px;
+}
+
+.tree-dock-item:hover,
+.tree-dock-item:focus {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.tree-dock-item-unavailable {
+  opacity: 0.4;
+}
+
+.tree-dock-indicator {
+  width: 5px;
+  height: 5px;
+  border-radius: 3px;
+  margin-top: 2px;
+  background-color: rgba(255, 255, 255, 0.9);
+}
