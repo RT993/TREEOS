@@ -15,4 +15,8 @@ All notable changes to TREE OS are recorded here. The format follows
 - Foundation smoke tests in `tests/unit/`.
 - `framework/tree-config`: schema-validated JSON configuration with atomic
   writes (`docs/specifications/tree-config.md`) and unit tests.
-- Draft specification for the TREE dock (`docs/specifications/dock.md`). No code yet.
+- TREE dock specification (`docs/specifications/dock.md`).
+- Dock groundwork: GSettings schema `org.treeos.shell.dock`, extension
+  metadata (GNOME 46 only), and a pure pinned-application list module with
+  Node unit tests. The extension UI (`extension.js`) is not written, so the
+  dock cannot be enabled yet.

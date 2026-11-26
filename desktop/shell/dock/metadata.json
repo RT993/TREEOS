@@ -1,0 +1,8 @@
+{
+  "uuid": "tree-dock@treeos.org",
+  "name": "TREE Dock",
+  "description": "Persistent bar of pinned and running applications for TREE OS.",
+  "shell-version": ["46"],
+  "settings-schema": "org.treeos.shell.dock",
+  "session-modes": ["user"]
+}

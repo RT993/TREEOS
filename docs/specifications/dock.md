@@ -1,7 +1,7 @@
 # Specification: TREE dock
 
 - **Component:** `desktop/shell/dock`
-- **Status:** Draft. No code has been written. Open questions are listed at the end and need owner decisions before implementation.
+- **Status:** Draft. Pinned-list storage is decided (GSettings). Remaining open questions are at the end.
 - **Platform:** Ubuntu 24.04 LTS, GNOME Shell 46, Mutter on Wayland, x86_64
 
 ## Purpose
@@ -134,9 +134,8 @@ reported as working.
 1. **Desktop environment in the VM.** Testing needs GNOME Shell 46 installed in
    the Ubuntu VM. That is a `sudo apt install` of several gigabytes and is a host
    change, so it needs your approval and your password entered by you.
-2. **Pinned list storage.** GSettings is proposed, because it is the GNOME
-   mechanism. The alternative is `tree-config`. This needs a decision, because
-   the two conflict.
+2. **Pinned list storage.** Decided: GSettings (`org.treeos.shell.dock`), because it
+   is the GNOME mechanism for extension preferences.
 3. **Default pinned apps.** The spec proposes an empty default. Should the
    first-boot defaults come from `distro/default-applications/`, and which
    applications should they be?

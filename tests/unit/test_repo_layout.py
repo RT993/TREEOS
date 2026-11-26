@@ -25,6 +25,8 @@ REQUIRED_FILES: tuple[str, ...] = (
     "docs/README.md",
     "docs/specifications/tree-config.md",
     "framework/tree-config/tree_config.py",
+    "desktop/shell/dock/metadata.json",
+    "desktop/shell/dock/pinned-apps.js",
     ".github/workflows/ci.yml",
 )
 
