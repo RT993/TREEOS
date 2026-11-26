@@ -1,0 +1,5 @@
+# Development-only Python tooling. Install into a virtual environment,
+# never into the system Python (CLAUDE.md section 5.3).
+pytest>=8.0,<9
+ruff>=0.6,<1
+mypy>=1.10,<2
