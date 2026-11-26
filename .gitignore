@@ -35,3 +35,6 @@ output/
 .idea/
 .vscode/
 *.swp
+
+# Nested Dashboard worktree clone
+treeos-repo-clone-368b19/
