@@ -23,6 +23,8 @@ REQUIRED_FILES: tuple[str, ...] = (
     "package.json",
     "eslint.config.mjs",
     "docs/README.md",
+    "docs/specifications/tree-config.md",
+    "framework/tree-config/tree_config.py",
     ".github/workflows/ci.yml",
 )
 

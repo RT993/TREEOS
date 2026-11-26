@@ -13,3 +13,5 @@ All notable changes to TREE OS are recorded here. The format follows
   (`package.json`, `eslint.config.mjs`), `.gitignore`, root documentation
   (`CONTRIBUTING.md`, `AGENTS.md`), `docs/` index, and a CI workflow.
 - Foundation smoke tests in `tests/unit/`.
+- `framework/tree-config`: schema-validated JSON configuration with atomic
+  writes (`docs/specifications/tree-config.md`) and unit tests.

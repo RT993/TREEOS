@@ -10,15 +10,17 @@ dependencies = []
 [tool.ruff]
 line-length = 88
 target-version = "py312"
-src = ["tests"]
+src = ["tests", "framework/tree-config"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
 
 [tool.mypy]
 strict = true
-files = ["tests"]
+files = ["tests", "framework/tree-config"]
+mypy_path = "framework/tree-config"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["framework/tree-config"]
 addopts = "-ra --strict-markers"
