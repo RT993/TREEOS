@@ -18,5 +18,8 @@ All notable changes to TREE OS are recorded here. The format follows
 - TREE dock specification (`docs/specifications/dock.md`).
 - Dock groundwork: GSettings schema `org.treeos.shell.dock`, extension
   metadata (GNOME 46 only), and a pure pinned-application list module with
-  Node unit tests. The extension UI (`extension.js`) is not written, so the
-  dock cannot be enabled yet.
+  Node unit tests.
+- TREE dock GNOME Shell extension (`desktop/shell/dock/extension.js`):
+  pinned and running applications, click to launch or switch, a running
+  indicator, and right-click Pin/Unpin/Quit. Verified manually in an
+  Ubuntu 24.04 VM on GNOME Shell 46 (Wayland).
