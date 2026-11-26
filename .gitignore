@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+
+# Node / JavaScript tooling
+node_modules/
+npm-debug.log*
+
+# Secrets and local environment (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials.json
+
+# Build artifacts (designated build directories only)
+*.iso
+*.img
+*.qcow2
+*.vdi
+*.vmdk
+output/
+
+# Editor and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp
