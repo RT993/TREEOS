@@ -22,6 +22,7 @@ const PINNED_KEY = 'pinned-apps';
 const BOTTOM_MARGIN = 8;
 const FALLBACK_ICON = 'application-x-executable';
 const TOOLTIP_GAP = 6;
+const DIVIDER_WIDTH = 1;
 
 class TreeDock {
   constructor(settings) {
@@ -88,11 +89,25 @@ class TreeDock {
     const running = this._appSystem
       .get_running()
       .filter(app => app.get_id() !== null && !pinned.includes(app.get_id()));
+    if (pinned.length > 0 && running.length > 0) {
+      this._actor.add_child(this._buildDivider());
+    }
     for (const app of running) {
       this._actor.add_child(this._buildItem(app.get_id(), false));
     }
 
     this._reposition();
+  }
+
+  // Decorative separator. St.Widget is not focusable and has no accessible
+  // name, so it is ignored by keyboard navigation and screen readers.
+  _buildDivider() {
+    return new St.Widget({
+      style_class: 'tree-dock-divider',
+      width: DIVIDER_WIDTH,
+      height: ICON_SIZE,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
   }
 
   _connect(object, signal, callback) {

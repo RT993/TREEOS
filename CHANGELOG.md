@@ -24,3 +24,4 @@ All notable changes to TREE OS are recorded here. The format follows
   indicator, and right-click Pin/Unpin/Quit. Verified manually in an
   Ubuntu 24.04 VM on GNOME Shell 46 (Wayland).
 - Dock: unavailable pinned apps show an "is unavailable" tooltip on hover.
+- Dock: a divider separates pinned apps from running apps when both are shown.
