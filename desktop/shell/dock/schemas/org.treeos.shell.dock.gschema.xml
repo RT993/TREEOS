@@ -10,5 +10,21 @@
         and shown as unavailable.
       </description>
     </key>
+    <key name="icon-size" type="i">
+      <default>48</default>
+      <range min="32" max="64"/>
+      <summary>Icon size</summary>
+      <description>Icon size in pixels, from 32 to 64.</description>
+    </key>
+    <key name="position" type="s">
+      <default>'bottom'</default>
+      <choices>
+        <choice value='bottom'/>
+        <choice value='left'/>
+        <choice value='right'/>
+      </choices>
+      <summary>Screen edge</summary>
+      <description>Screen edge the dock sits on: bottom, left or right.</description>
+    </key>
   </schema>
 </schemalist>

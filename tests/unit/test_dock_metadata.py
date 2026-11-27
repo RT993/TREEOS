@@ -43,11 +43,29 @@ def test_schema_declares_pinned_apps_as_string_array() -> None:
     schemas = root.findall("schema")
     assert [s.get("id") for s in schemas] == [SCHEMA_ID]
     keys = {key.get("name"): key for key in schemas[0].findall("key")}
-    assert set(keys) == {"pinned-apps"}
+    assert {"pinned-apps", "icon-size", "position"} <= set(keys)
     pinned = keys["pinned-apps"]
     assert pinned.get("type") == "as"
     default = pinned.findtext("default")
     assert default == "[]"
+
+
+def test_layout_keys_have_types_defaults_and_limits() -> None:
+    root = ET.parse(DOCK_DIR / "schemas" / f"{SCHEMA_ID}.gschema.xml").getroot()
+    keys = {key.get("name"): key for key in root.find("schema").findall("key")}
+
+    icon_size = keys["icon-size"]
+    assert icon_size.get("type") == "i"
+    assert icon_size.findtext("default") == "48"
+    range_node = icon_size.find("range")
+    assert range_node is not None
+    assert (range_node.get("min"), range_node.get("max")) == ("32", "64")
+
+    position = keys["position"]
+    assert position.get("type") == "s"
+    assert position.findtext("default") == "'bottom'"
+    values = [node.get("value") for node in position.find("choices").findall("choice")]
+    assert values == ["bottom", "left", "right"]
 
 
 def test_pinned_apps_module_has_no_gnome_or_node_imports() -> None:

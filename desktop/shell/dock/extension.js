@@ -14,12 +14,20 @@ import {
   pinApp,
   unpinApp,
 } from './pinned-apps.js';
+import {
+  DEFAULT_ICON_SIZE,
+  DEFAULT_POSITION,
+  clampIconSize,
+  dockPlacement,
+  isVerticalPosition,
+  normalizePosition,
+} from './dock-layout.js';
 
-const ICON_SIZE = 48;
 const INDICATOR_SIZE = 5;
 const UNAVAILABLE_OPACITY = 102; // 40% of 255
 const PINNED_KEY = 'pinned-apps';
-const BOTTOM_MARGIN = 8;
+const ICON_SIZE_KEY = 'icon-size';
+const POSITION_KEY = 'position';
 const FALLBACK_ICON = 'application-x-executable';
 const TOOLTIP_GAP = 6;
 const DIVIDER_WIDTH = 1;
@@ -33,6 +41,8 @@ class TreeDock {
     this._menu = null;
     this._menuManager = null;
     this._tooltip = null;
+    this._iconSize = DEFAULT_ICON_SIZE;
+    this._position = DEFAULT_POSITION;
   }
 
   enable() {
@@ -46,6 +56,8 @@ class TreeDock {
     });
 
     this._connect(this._settings, `changed::${PINNED_KEY}`, () => this.rebuild());
+    this._connect(this._settings, `changed::${ICON_SIZE_KEY}`, () => this.rebuild());
+    this._connect(this._settings, `changed::${POSITION_KEY}`, () => this.rebuild());
     this._connect(this._appSystem, 'app-state-changed', () => this.rebuild());
     this._connect(this._appSystem, 'installed-changed', () => this.rebuild());
     this._connect(Main.layoutManager, 'monitors-changed', () => this._reposition());
@@ -76,6 +88,10 @@ class TreeDock {
     this._hideTooltip();
     this._actor.destroy_all_children();
 
+    this._iconSize = clampIconSize(this._settings.get_int(ICON_SIZE_KEY));
+    this._position = normalizePosition(this._settings.get_string(POSITION_KEY));
+    this._actor.vertical = isVerticalPosition(this._position);
+
     const stored = this._settings.get_strv(PINNED_KEY);
     const {apps: pinned, dropped} = normalizePinnedApps(stored);
     if (dropped.length > 0) {
@@ -102,10 +118,13 @@ class TreeDock {
   // Decorative separator. St.Widget is not focusable and has no accessible
   // name, so it is ignored by keyboard navigation and screen readers.
   _buildDivider() {
+    // A vertical dock has a horizontal line between groups, and the reverse.
+    const vertical = isVerticalPosition(this._position);
     return new St.Widget({
       style_class: 'tree-dock-divider',
-      width: DIVIDER_WIDTH,
-      height: ICON_SIZE,
+      width: vertical ? this._iconSize : DIVIDER_WIDTH,
+      height: vertical ? DIVIDER_WIDTH : this._iconSize,
+      x_align: Clutter.ActorAlign.CENTER,
       y_align: Clutter.ActorAlign.CENTER,
     });
   }
@@ -119,8 +138,8 @@ class TreeDock {
     const name = app !== null ? app.get_name() : id;
 
     const icon = app !== null
-      ? app.create_icon_texture(ICON_SIZE)
-      : new St.Icon({icon_name: FALLBACK_ICON, icon_size: ICON_SIZE});
+      ? app.create_icon_texture(this._iconSize)
+      : new St.Icon({icon_name: FALLBACK_ICON, icon_size: this._iconSize});
 
     const column = new St.BoxLayout({vertical: true});
     column.add_child(icon);
@@ -258,8 +277,7 @@ class TreeDock {
     }
     const [, width] = this._actor.get_preferred_width(-1);
     const [, height] = this._actor.get_preferred_height(-1);
-    const x = monitor.x + Math.floor((monitor.width - width) / 2);
-    const y = monitor.y + monitor.height - height - BOTTOM_MARGIN;
+    const {x, y} = dockPlacement(monitor, {width, height}, this._position);
     this._actor.set_position(x, y);
   }
 }
