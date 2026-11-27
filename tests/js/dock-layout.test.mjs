@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import {describe, it} from 'node:test';
 
 import {
+  MAX_MAGNIFICATION,
   barrierGeometry,
   clampIconSize,
   dockPlacement,
   isVerticalPosition,
+  magnificationScale,
   normalizePosition,
 } from '../../desktop/shell/dock/dock-layout.js';
 
@@ -48,6 +50,25 @@ describe('normalizePosition and isVerticalPosition', () => {
     assert.equal(isVerticalPosition('bottom'), false);
     assert.equal(isVerticalPosition('left'), true);
     assert.equal(isVerticalPosition('right'), true);
+  });
+});
+
+describe('magnificationScale', () => {
+  it('is largest under the pointer', () => {
+    assert.equal(magnificationScale(0, 100), MAX_MAGNIFICATION);
+    assert.equal(MAX_MAGNIFICATION, 1.5);
+  });
+
+  it('falls off linearly and reaches 1 at the radius', () => {
+    assert.equal(magnificationScale(50, 100), 1.25);
+    assert.equal(magnificationScale(100, 100), 1);
+    assert.equal(magnificationScale(150, 100), 1);
+  });
+
+  it('treats negative distances as zero and bad radii as no magnification', () => {
+    assert.equal(magnificationScale(-10, 100), MAX_MAGNIFICATION);
+    assert.equal(magnificationScale(10, 0), 1);
+    assert.equal(magnificationScale(NaN, 100), 1);
   });
 });
 

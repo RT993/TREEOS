@@ -24,6 +24,7 @@ import {
   clampIconSize,
   dockPlacement,
   isVerticalPosition,
+  magnificationScale,
   normalizePosition,
 } from './dock-layout.js';
 
@@ -33,6 +34,8 @@ const PINNED_KEY = 'pinned-apps';
 const ICON_SIZE_KEY = 'icon-size';
 const POSITION_KEY = 'position';
 const AUTOHIDE_KEY = 'autohide';
+const MAGNIFY_KEY = 'magnification';
+const MAGNIFY_MS = 120;
 const FALLBACK_ICON = 'application-x-executable';
 const TOOLTIP_GAP = 6;
 const DIVIDER_WIDTH = 1;
@@ -66,6 +69,7 @@ class TreeDock {
     this._barrierHitId = 0;
     this._hideTimeoutId = 0;
     this._hidden = false;
+    this._magnify = false;
   }
 
   enable() {
@@ -82,10 +86,16 @@ class TreeDock {
       return Clutter.EVENT_PROPAGATE;
     });
     this._actor.connect('leave-event', () => {
+      this._resetMagnification();
       this._scheduleHide();
       return Clutter.EVENT_PROPAGATE;
     });
+    this._actor.connect('motion-event', (_actor, event) => {
+      this._onPointerMotion(event.get_coords());
+      return Clutter.EVENT_PROPAGATE;
+    });
 
+    this._connect(this._settings, `changed::${MAGNIFY_KEY}`, () => this.rebuild());
     this._connect(this._settings, `changed::${PINNED_KEY}`, () => this.rebuild());
     this._connect(this._settings, `changed::${ICON_SIZE_KEY}`, () => this.rebuild());
     this._connect(this._settings, `changed::${POSITION_KEY}`, () => this.rebuild());
@@ -126,6 +136,7 @@ class TreeDock {
     this._iconSize = clampIconSize(this._settings.get_int(ICON_SIZE_KEY));
     this._position = normalizePosition(this._settings.get_string(POSITION_KEY));
     this._autohide = this._settings.get_boolean(AUTOHIDE_KEY);
+    this._magnify = this._settings.get_boolean(MAGNIFY_KEY);
     this._actor.vertical = isVerticalPosition(this._position);
 
     const stored = this._settings.get_strv(PINNED_KEY);
@@ -199,6 +210,8 @@ class TreeDock {
       reactive: true,
       child: column,
     });
+    // Scale from the centre, so a magnified icon grows in place.
+    button.set_pivot_point(0.5, 0.5);
     button.get_accessible().set_name(name);
     // Text accessible descriptions are not set yet. Calling set_description on
     // the button's accessible object throws a TypeError on GNOME 46, which stops
@@ -394,6 +407,55 @@ class TreeDock {
     }
   }
 
+  _animationsEnabled() {
+    return this._interfaceSettings.get_boolean('enable-animations');
+  }
+
+  // Icons near the pointer grow. Scaling does not change the layout, so
+  // neighbouring icons keep their places and may overlap the magnified icon.
+  _onPointerMotion(coords) {
+    if (!this._magnify || !this._animationsEnabled() || this._actor === null) {
+      return;
+    }
+    const vertical = isVerticalPosition(this._position);
+    const pointer = vertical ? coords[1] : coords[0];
+    const [originX, originY] = this._actor.get_transformed_position();
+    const origin = vertical ? originY : originX;
+
+    for (const child of this._actor.get_children()) {
+      if (!child.has_style_class_name('tree-dock-item')) {
+        continue;
+      }
+      // The allocation is in the dock's own coordinates. The pivot is the
+      // centre, so the centre does not move when the icon scales.
+      const box = child.get_allocation_box();
+      const centre = origin + (vertical ? (box.y1 + box.y2) / 2 : (box.x1 + box.x2) / 2);
+      const scale = magnificationScale(Math.abs(pointer - centre), this._iconSize * 2);
+      child.ease({
+        scale_x: scale,
+        scale_y: scale,
+        duration: MAGNIFY_MS,
+        mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+      });
+    }
+  }
+
+  _resetMagnification() {
+    if (this._actor === null) {
+      return;
+    }
+    for (const child of this._actor.get_children()) {
+      if (child.has_style_class_name('tree-dock-item')) {
+        child.ease({
+          scale_x: 1,
+          scale_y: 1,
+          duration: MAGNIFY_MS,
+          mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        });
+      }
+    }
+  }
+
   // A hidden dock is not reactive, so the pointer reaches the barrier instead.
   // The fade follows GNOME's enable-animations setting: with animations off the
   // change is instant.
@@ -404,7 +466,7 @@ class TreeDock {
     this._hidden = !visible;
     this._actor.reactive = visible;
     const target = visible ? SHOWN_OPACITY : HIDDEN_OPACITY;
-    if (!this._interfaceSettings.get_boolean('enable-animations')) {
+    if (!this._animationsEnabled()) {
       this._actor.opacity = target;
       return;
     }

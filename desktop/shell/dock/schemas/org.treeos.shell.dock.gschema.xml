@@ -21,6 +21,11 @@
       <summary>Auto-hide the dock</summary>
       <description>Hide the dock until the pointer reaches its screen edge or a keyboard focus enters it.</description>
     </key>
+    <key name="magnification" type="b">
+      <default>false</default>
+      <summary>Magnify icons near the pointer</summary>
+      <description>Enlarge dock icons near the pointer, up to 1.5 times. Has no effect when GNOME animations are disabled.</description>
+    </key>
     <key name="position" type="s">
       <default>'bottom'</default>
       <choices>

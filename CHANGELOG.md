@@ -33,3 +33,6 @@ All notable changes to TREE OS are recorded here. The format follows
   the pointer leaves, and returns when the pointer reaches its screen edge or
   keyboard focus enters it. Built on Meta.Barrier. Not yet verified in a GNOME
   session.
+- Dock: optional magnification (`magnification` GSettings key). Icons near the
+  pointer grow up to 1.5 times. Off when GNOME animations are disabled. Not yet
+  verified in a GNOME session.

@@ -45,6 +45,27 @@ export function isVerticalPosition(position) {
   return normalizePosition(position) !== 'bottom';
 }
 
+export const MAX_MAGNIFICATION = 1.5;
+
+/**
+ * Scale for an icon at `distance` pixels from the pointer. The icon is largest
+ * under the pointer and returns to 1 at `radius`, falling off linearly.
+ *
+ * @param {number} distance
+ * @param {number} radius
+ * @returns {number} A scale from 1 to MAX_MAGNIFICATION.
+ */
+export function magnificationScale(distance, radius) {
+  if (!(radius > 0) || !Number.isFinite(distance)) {
+    return 1;
+  }
+  const d = Math.max(0, distance);
+  if (d >= radius) {
+    return 1;
+  }
+  return 1 + (MAX_MAGNIFICATION - 1) * (1 - d / radius);
+}
+
 /**
  * Geometry of the edge barrier that reveals an auto-hidden dock.
  *
