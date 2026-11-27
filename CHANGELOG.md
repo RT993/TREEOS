@@ -29,3 +29,7 @@ All notable changes to TREE OS are recorded here. The format follows
   set through the `icon-size` and `position` GSettings keys. Placement logic is
   in `dock-layout.js` with Node tests. Side docks and reserved screen space are
   not yet verified in a GNOME session.
+- Dock: optional auto-hide (`autohide` GSettings key). The dock fades out after
+  the pointer leaves, and returns when the pointer reaches its screen edge or
+  keyboard focus enters it. Built on Meta.Barrier. Not yet verified in a GNOME
+  session.

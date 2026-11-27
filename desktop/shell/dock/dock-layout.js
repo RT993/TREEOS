@@ -46,6 +46,31 @@ export function isVerticalPosition(position) {
 }
 
 /**
+ * Geometry of the edge barrier that reveals an auto-hidden dock.
+ *
+ * `allowed` is the Mutter barrier direction for the inward direction from the
+ * screen edge. The barrier is hit when the pointer tries to leave the screen
+ * through that edge. The values follow GNOME's own barriers in js/ui/layout.js.
+ *
+ * @param {{x: number, y: number, width: number, height: number}} monitor
+ * @param {string} position
+ * @returns {{x1: number, y1: number, x2: number, y2: number, allowed: string}}
+ */
+export function barrierGeometry(monitor, position) {
+  const edge = normalizePosition(position);
+  const right = monitor.x + monitor.width;
+  const bottom = monitor.y + monitor.height;
+
+  if (edge === 'left') {
+    return {x1: monitor.x, y1: monitor.y, x2: monitor.x, y2: bottom, allowed: 'POSITIVE_X'};
+  }
+  if (edge === 'right') {
+    return {x1: right, y1: monitor.y, x2: right, y2: bottom, allowed: 'NEGATIVE_X'};
+  }
+  return {x1: monitor.x, y1: bottom, x2: right, y2: bottom, allowed: 'NEGATIVE_Y'};
+}
+
+/**
  * Work out where the dock's top-left corner goes on a monitor.
  *
  * The dock is centred along its edge, with a fixed margin from the edge.

@@ -21,6 +21,8 @@ export default [
     languageOptions: {
       globals: {
         console: "readonly",
+        // GNOME Shell provides `global` (for example global.backend) to extensions.
+        global: "readonly",
       },
     },
   },

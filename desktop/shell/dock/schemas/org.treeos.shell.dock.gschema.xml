@@ -16,6 +16,11 @@
       <summary>Icon size</summary>
       <description>Icon size in pixels, from 32 to 64.</description>
     </key>
+    <key name="autohide" type="b">
+      <default>false</default>
+      <summary>Auto-hide the dock</summary>
+      <description>Hide the dock until the pointer reaches its screen edge or a keyboard focus enters it.</description>
+    </key>
     <key name="position" type="s">
       <default>'bottom'</default>
       <choices>

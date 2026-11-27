@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {describe, it} from 'node:test';
 
 import {
+  barrierGeometry,
   clampIconSize,
   dockPlacement,
   isVerticalPosition,
@@ -47,6 +48,30 @@ describe('normalizePosition and isVerticalPosition', () => {
     assert.equal(isVerticalPosition('bottom'), false);
     assert.equal(isVerticalPosition('left'), true);
     assert.equal(isVerticalPosition('right'), true);
+  });
+});
+
+describe('barrierGeometry', () => {
+  it('runs along the bottom edge and allows movement upward', () => {
+    assert.deepEqual(barrierGeometry(MONITOR, 'bottom'), {
+      x1: 0, y1: 1080, x2: 1920, y2: 1080, allowed: 'NEGATIVE_Y',
+    });
+  });
+
+  it('runs along the left edge', () => {
+    assert.deepEqual(barrierGeometry(MONITOR, 'left'), {
+      x1: 0, y1: 0, x2: 0, y2: 1080, allowed: 'POSITIVE_X',
+    });
+  });
+
+  it('runs along the right edge', () => {
+    assert.deepEqual(barrierGeometry(MONITOR, 'right'), {
+      x1: 1920, y1: 0, x2: 1920, y2: 1080, allowed: 'NEGATIVE_X',
+    });
+  });
+
+  it('falls back to the bottom edge for an unknown position', () => {
+    assert.deepEqual(barrierGeometry(MONITOR, 'top'), barrierGeometry(MONITOR, 'bottom'));
   });
 });
 

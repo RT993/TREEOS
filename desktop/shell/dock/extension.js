@@ -2,6 +2,9 @@
 // See docs/specifications/dock.md for the behaviour this file implements.
 
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
+import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -17,6 +20,7 @@ import {
 import {
   DEFAULT_ICON_SIZE,
   DEFAULT_POSITION,
+  barrierGeometry,
   clampIconSize,
   dockPlacement,
   isVerticalPosition,
@@ -28,14 +32,28 @@ const UNAVAILABLE_OPACITY = 102; // 40% of 255
 const PINNED_KEY = 'pinned-apps';
 const ICON_SIZE_KEY = 'icon-size';
 const POSITION_KEY = 'position';
+const AUTOHIDE_KEY = 'autohide';
 const FALLBACK_ICON = 'application-x-executable';
 const TOOLTIP_GAP = 6;
 const DIVIDER_WIDTH = 1;
+const HIDE_DELAY_MS = 500;
+const FADE_MS = 200;
+const SHOWN_OPACITY = 255;
+const HIDDEN_OPACITY = 0;
+const INTERFACE_SCHEMA = 'org.gnome.desktop.interface';
+
+// Mutter barrier directions, keyed by the names used in dock-layout.js.
+const BARRIER_DIRECTIONS = {
+  POSITIVE_X: Meta.BarrierDirection.POSITIVE_X,
+  NEGATIVE_X: Meta.BarrierDirection.NEGATIVE_X,
+  NEGATIVE_Y: Meta.BarrierDirection.NEGATIVE_Y,
+};
 
 class TreeDock {
   constructor(settings) {
     this._settings = settings;
     this._appSystem = Shell.AppSystem.get_default();
+    this._interfaceSettings = new Gio.Settings({schema_id: INTERFACE_SCHEMA});
     this._signalIds = [];
     this._actor = null;
     this._menu = null;
@@ -43,6 +61,11 @@ class TreeDock {
     this._tooltip = null;
     this._iconSize = DEFAULT_ICON_SIZE;
     this._position = DEFAULT_POSITION;
+    this._autohide = false;
+    this._barrier = null;
+    this._barrierHitId = 0;
+    this._hideTimeoutId = 0;
+    this._hidden = false;
   }
 
   enable() {
@@ -54,10 +77,19 @@ class TreeDock {
       affectsStruts: true,
       trackFullscreen: true,
     });
+    this._actor.connect('enter-event', () => {
+      this._cancelHide();
+      return Clutter.EVENT_PROPAGATE;
+    });
+    this._actor.connect('leave-event', () => {
+      this._scheduleHide();
+      return Clutter.EVENT_PROPAGATE;
+    });
 
     this._connect(this._settings, `changed::${PINNED_KEY}`, () => this.rebuild());
     this._connect(this._settings, `changed::${ICON_SIZE_KEY}`, () => this.rebuild());
     this._connect(this._settings, `changed::${POSITION_KEY}`, () => this.rebuild());
+    this._connect(this._settings, `changed::${AUTOHIDE_KEY}`, () => this.rebuild());
     this._connect(this._appSystem, 'app-state-changed', () => this.rebuild());
     this._connect(this._appSystem, 'installed-changed', () => this.rebuild());
     this._connect(Main.layoutManager, 'monitors-changed', () => this._reposition());
@@ -71,6 +103,8 @@ class TreeDock {
     }
     this._signalIds = [];
 
+    this._cancelHide();
+    this._removeBarrier();
     this._closeMenu();
     this._hideTooltip();
     if (this._actor !== null) {
@@ -78,6 +112,7 @@ class TreeDock {
       this._actor.destroy();
       this._actor = null;
     }
+    this._hidden = false;
   }
 
   rebuild() {
@@ -90,6 +125,7 @@ class TreeDock {
 
     this._iconSize = clampIconSize(this._settings.get_int(ICON_SIZE_KEY));
     this._position = normalizePosition(this._settings.get_string(POSITION_KEY));
+    this._autohide = this._settings.get_boolean(AUTOHIDE_KEY);
     this._actor.vertical = isVerticalPosition(this._position);
 
     const stored = this._settings.get_strv(PINNED_KEY);
@@ -182,6 +218,12 @@ class TreeDock {
         return Clutter.EVENT_PROPAGATE;
       });
     }
+
+    // Keyboard focus must bring a hidden dock back, so a user can reach it.
+    button.connect('key-focus-in', () => {
+      this._showDock();
+      return Clutter.EVENT_PROPAGATE;
+    });
 
     button.connect('clicked', () => this._activate(app, name));
     button.connect('button-press-event', (_actor, event) => {
@@ -279,6 +321,98 @@ class TreeDock {
     const [, height] = this._actor.get_preferred_height(-1);
     const {x, y} = dockPlacement(monitor, {width, height}, this._position);
     this._actor.set_position(x, y);
+    this._updateBarrier();
+  }
+
+  // Auto-hide: an edge barrier reveals the dock, and it hides again after the
+  // pointer has been away for HIDE_DELAY_MS. Without auto-hide the dock is
+  // always visible and the barrier is removed.
+  _updateBarrier() {
+    this._removeBarrier();
+    if (!this._autohide) {
+      this._cancelHide();
+      this._setVisible(true);
+      return;
+    }
+
+    const monitor = Main.layoutManager.primaryMonitor;
+    if (monitor === null) {
+      return;
+    }
+    const geometry = barrierGeometry(monitor, this._position);
+    this._barrier = new Meta.Barrier({
+      backend: global.backend,
+      x1: geometry.x1,
+      y1: geometry.y1,
+      x2: geometry.x2,
+      y2: geometry.y2,
+      directions: BARRIER_DIRECTIONS[geometry.allowed],
+    });
+    this._barrierHitId = this._barrier.connect('hit', () => this._showDock());
+    this._scheduleHide();
+  }
+
+  _removeBarrier() {
+    if (this._barrier !== null) {
+      this._barrier.disconnect(this._barrierHitId);
+      this._barrier.destroy();
+      this._barrier = null;
+      this._barrierHitId = 0;
+    }
+  }
+
+  _showDock() {
+    this._cancelHide();
+    if (this._hidden) {
+      this._setVisible(true);
+    }
+  }
+
+  _hideDock() {
+    // Keep the dock open while a menu from it is showing.
+    if (this._autohide && !this._hidden && this._menu === null) {
+      this._setVisible(false);
+    }
+  }
+
+  _scheduleHide() {
+    this._cancelHide();
+    if (!this._autohide) {
+      return;
+    }
+    this._hideTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, HIDE_DELAY_MS, () => {
+      this._hideTimeoutId = 0;
+      this._hideDock();
+      return GLib.SOURCE_REMOVE;
+    });
+  }
+
+  _cancelHide() {
+    if (this._hideTimeoutId !== 0) {
+      GLib.source_remove(this._hideTimeoutId);
+      this._hideTimeoutId = 0;
+    }
+  }
+
+  // A hidden dock is not reactive, so the pointer reaches the barrier instead.
+  // The fade follows GNOME's enable-animations setting: with animations off the
+  // change is instant.
+  _setVisible(visible) {
+    if (this._actor === null) {
+      return;
+    }
+    this._hidden = !visible;
+    this._actor.reactive = visible;
+    const target = visible ? SHOWN_OPACITY : HIDDEN_OPACITY;
+    if (!this._interfaceSettings.get_boolean('enable-animations')) {
+      this._actor.opacity = target;
+      return;
+    }
+    this._actor.ease({
+      opacity: target,
+      duration: FADE_MS,
+      mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+    });
   }
 }
 
