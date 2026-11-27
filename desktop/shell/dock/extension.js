@@ -21,6 +21,7 @@ const UNAVAILABLE_OPACITY = 102; // 40% of 255
 const PINNED_KEY = 'pinned-apps';
 const BOTTOM_MARGIN = 8;
 const FALLBACK_ICON = 'application-x-executable';
+const TOOLTIP_GAP = 6;
 
 class TreeDock {
   constructor(settings) {
@@ -30,6 +31,7 @@ class TreeDock {
     this._actor = null;
     this._menu = null;
     this._menuManager = null;
+    this._tooltip = null;
   }
 
   enable() {
@@ -57,6 +59,7 @@ class TreeDock {
     this._signalIds = [];
 
     this._closeMenu();
+    this._hideTooltip();
     if (this._actor !== null) {
       Main.layoutManager.removeChrome(this._actor);
       this._actor.destroy();
@@ -69,6 +72,7 @@ class TreeDock {
       return;
     }
     this._closeMenu();
+    this._hideTooltip();
     this._actor.destroy_all_children();
 
     const stored = this._settings.get_strv(PINNED_KEY);
@@ -125,12 +129,29 @@ class TreeDock {
       reactive: true,
       child: column,
     });
-    button.get_accessible().set_name(name);
+    const accessible = button.get_accessible();
+    accessible.set_name(name);
+    // The running state is conveyed in text as well as by the dot (spec: accessibility).
+    if (app === null) {
+      accessible.set_description('Unavailable: not installed');
+    } else if (isRunning) {
+      accessible.set_description('Running');
+    } else {
+      accessible.set_description('Not running');
+    }
 
     if (app === null) {
       // Dimmed by actor opacity (0-255), not CSS, so it applies reliably in St.
       button.add_style_class_name('tree-dock-item-unavailable');
       button.opacity = UNAVAILABLE_OPACITY;
+      button.connect('enter-event', () => {
+        this._showTooltip(button, `${name} is unavailable`);
+        return Clutter.EVENT_PROPAGATE;
+      });
+      button.connect('leave-event', () => {
+        this._hideTooltip();
+        return Clutter.EVENT_PROPAGATE;
+      });
     }
 
     button.connect('clicked', () => this._activate(app, name));
@@ -179,6 +200,26 @@ class TreeDock {
     }
 
     menu.open();
+  }
+
+  _showTooltip(button, text) {
+    this._hideTooltip();
+    const label = new St.Label({style_class: 'tree-dock-tooltip', text});
+    Main.uiGroup.add_child(label);
+    this._tooltip = label;
+
+    const [x, y] = button.get_transformed_position();
+    const [, width] = label.get_preferred_width(-1);
+    const [, height] = label.get_preferred_height(-1);
+    const left = Math.floor(x + (button.get_width() - width) / 2);
+    label.set_position(left, Math.floor(y - height - TOOLTIP_GAP));
+  }
+
+  _hideTooltip() {
+    if (this._tooltip !== null) {
+      this._tooltip.destroy();
+      this._tooltip = null;
+    }
   }
 
   _closeMenu() {
