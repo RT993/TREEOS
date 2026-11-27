@@ -23,3 +23,16 @@ All notable changes to TREE OS are recorded here. The format follows
   pinned and running applications, click to launch or switch, a running
   indicator, and right-click Pin/Unpin/Quit. Verified manually in an
   Ubuntu 24.04 VM on GNOME Shell 46 (Wayland).
+- Dock: unavailable pinned apps show an "is unavailable" tooltip on hover.
+- Dock: a divider separates pinned apps from running apps when both are shown.
+- Dock: icon size (32 to 64 px) and screen edge (bottom, left or right) are
+  set through the `icon-size` and `position` GSettings keys. Placement logic is
+  in `dock-layout.js` with Node tests. Side docks and reserved screen space are
+  not yet verified in a GNOME session.
+- Dock: optional auto-hide (`autohide` GSettings key). The dock fades out after
+  the pointer leaves, and returns when the pointer reaches its screen edge or
+  keyboard focus enters it. Built on Meta.Barrier. Not yet verified in a GNOME
+  session.
+- Dock: optional magnification (`magnification` GSettings key). Icons near the
+  pointer grow up to 1.5 times. Off when GNOME animations are disabled. Not yet
+  verified in a GNOME session.

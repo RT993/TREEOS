@@ -2,6 +2,9 @@
 // See docs/specifications/dock.md for the behaviour this file implements.
 
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
+import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -14,22 +17,59 @@ import {
   pinApp,
   unpinApp,
 } from './pinned-apps.js';
+import {
+  DEFAULT_ICON_SIZE,
+  DEFAULT_POSITION,
+  barrierGeometry,
+  clampIconSize,
+  dockPlacement,
+  isVerticalPosition,
+  magnificationScale,
+  normalizePosition,
+} from './dock-layout.js';
 
-const ICON_SIZE = 48;
 const INDICATOR_SIZE = 5;
 const UNAVAILABLE_OPACITY = 102; // 40% of 255
 const PINNED_KEY = 'pinned-apps';
-const BOTTOM_MARGIN = 8;
+const ICON_SIZE_KEY = 'icon-size';
+const POSITION_KEY = 'position';
+const AUTOHIDE_KEY = 'autohide';
+const MAGNIFY_KEY = 'magnification';
+const MAGNIFY_MS = 120;
 const FALLBACK_ICON = 'application-x-executable';
+const TOOLTIP_GAP = 6;
+const DIVIDER_WIDTH = 1;
+const HIDE_DELAY_MS = 500;
+const FADE_MS = 200;
+const SHOWN_OPACITY = 255;
+const HIDDEN_OPACITY = 0;
+const INTERFACE_SCHEMA = 'org.gnome.desktop.interface';
+
+// Mutter barrier directions, keyed by the names used in dock-layout.js.
+const BARRIER_DIRECTIONS = {
+  POSITIVE_X: Meta.BarrierDirection.POSITIVE_X,
+  NEGATIVE_X: Meta.BarrierDirection.NEGATIVE_X,
+  NEGATIVE_Y: Meta.BarrierDirection.NEGATIVE_Y,
+};
 
 class TreeDock {
   constructor(settings) {
     this._settings = settings;
     this._appSystem = Shell.AppSystem.get_default();
+    this._interfaceSettings = new Gio.Settings({schema_id: INTERFACE_SCHEMA});
     this._signalIds = [];
     this._actor = null;
     this._menu = null;
     this._menuManager = null;
+    this._tooltip = null;
+    this._iconSize = DEFAULT_ICON_SIZE;
+    this._position = DEFAULT_POSITION;
+    this._autohide = false;
+    this._barrier = null;
+    this._barrierHitId = 0;
+    this._hideTimeoutId = 0;
+    this._hidden = false;
+    this._magnify = false;
   }
 
   enable() {
@@ -41,8 +81,25 @@ class TreeDock {
       affectsStruts: true,
       trackFullscreen: true,
     });
+    this._actor.connect('enter-event', () => {
+      this._cancelHide();
+      return Clutter.EVENT_PROPAGATE;
+    });
+    this._actor.connect('leave-event', () => {
+      this._resetMagnification();
+      this._scheduleHide();
+      return Clutter.EVENT_PROPAGATE;
+    });
+    this._actor.connect('motion-event', (_actor, event) => {
+      this._onPointerMotion(event.get_coords());
+      return Clutter.EVENT_PROPAGATE;
+    });
 
+    this._connect(this._settings, `changed::${MAGNIFY_KEY}`, () => this.rebuild());
     this._connect(this._settings, `changed::${PINNED_KEY}`, () => this.rebuild());
+    this._connect(this._settings, `changed::${ICON_SIZE_KEY}`, () => this.rebuild());
+    this._connect(this._settings, `changed::${POSITION_KEY}`, () => this.rebuild());
+    this._connect(this._settings, `changed::${AUTOHIDE_KEY}`, () => this.rebuild());
     this._connect(this._appSystem, 'app-state-changed', () => this.rebuild());
     this._connect(this._appSystem, 'installed-changed', () => this.rebuild());
     this._connect(Main.layoutManager, 'monitors-changed', () => this._reposition());
@@ -56,12 +113,16 @@ class TreeDock {
     }
     this._signalIds = [];
 
+    this._cancelHide();
+    this._removeBarrier();
     this._closeMenu();
+    this._hideTooltip();
     if (this._actor !== null) {
       Main.layoutManager.removeChrome(this._actor);
       this._actor.destroy();
       this._actor = null;
     }
+    this._hidden = false;
   }
 
   rebuild() {
@@ -69,7 +130,14 @@ class TreeDock {
       return;
     }
     this._closeMenu();
+    this._hideTooltip();
     this._actor.destroy_all_children();
+
+    this._iconSize = clampIconSize(this._settings.get_int(ICON_SIZE_KEY));
+    this._position = normalizePosition(this._settings.get_string(POSITION_KEY));
+    this._autohide = this._settings.get_boolean(AUTOHIDE_KEY);
+    this._magnify = this._settings.get_boolean(MAGNIFY_KEY);
+    this._actor.vertical = isVerticalPosition(this._position);
 
     const stored = this._settings.get_strv(PINNED_KEY);
     const {apps: pinned, dropped} = normalizePinnedApps(stored);
@@ -84,11 +152,28 @@ class TreeDock {
     const running = this._appSystem
       .get_running()
       .filter(app => app.get_id() !== null && !pinned.includes(app.get_id()));
+    if (pinned.length > 0 && running.length > 0) {
+      this._actor.add_child(this._buildDivider());
+    }
     for (const app of running) {
       this._actor.add_child(this._buildItem(app.get_id(), false));
     }
 
     this._reposition();
+  }
+
+  // Decorative separator. St.Widget is not focusable and has no accessible
+  // name, so it is ignored by keyboard navigation and screen readers.
+  _buildDivider() {
+    // A vertical dock has a horizontal line between groups, and the reverse.
+    const vertical = isVerticalPosition(this._position);
+    return new St.Widget({
+      style_class: 'tree-dock-divider',
+      width: vertical ? this._iconSize : DIVIDER_WIDTH,
+      height: vertical ? DIVIDER_WIDTH : this._iconSize,
+      x_align: Clutter.ActorAlign.CENTER,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
   }
 
   _connect(object, signal, callback) {
@@ -100,8 +185,8 @@ class TreeDock {
     const name = app !== null ? app.get_name() : id;
 
     const icon = app !== null
-      ? app.create_icon_texture(ICON_SIZE)
-      : new St.Icon({icon_name: FALLBACK_ICON, icon_size: ICON_SIZE});
+      ? app.create_icon_texture(this._iconSize)
+      : new St.Icon({icon_name: FALLBACK_ICON, icon_size: this._iconSize});
 
     const column = new St.BoxLayout({vertical: true});
     column.add_child(icon);
@@ -125,13 +210,33 @@ class TreeDock {
       reactive: true,
       child: column,
     });
+    // Scale from the centre, so a magnified icon grows in place.
+    button.set_pivot_point(0.5, 0.5);
     button.get_accessible().set_name(name);
+    // Text accessible descriptions are not set yet. Calling set_description on
+    // the button's accessible object throws a TypeError on GNOME 46, which stops
+    // the whole extension from loading. Restore it once the correct API is
+    // confirmed in the VM.
 
     if (app === null) {
       // Dimmed by actor opacity (0-255), not CSS, so it applies reliably in St.
       button.add_style_class_name('tree-dock-item-unavailable');
       button.opacity = UNAVAILABLE_OPACITY;
+      button.connect('enter-event', () => {
+        this._showTooltip(button, `${name} is unavailable`);
+        return Clutter.EVENT_PROPAGATE;
+      });
+      button.connect('leave-event', () => {
+        this._hideTooltip();
+        return Clutter.EVENT_PROPAGATE;
+      });
     }
+
+    // Keyboard focus must bring a hidden dock back, so a user can reach it.
+    button.connect('key-focus-in', () => {
+      this._showDock();
+      return Clutter.EVENT_PROPAGATE;
+    });
 
     button.connect('clicked', () => this._activate(app, name));
     button.connect('button-press-event', (_actor, event) => {
@@ -181,6 +286,26 @@ class TreeDock {
     menu.open();
   }
 
+  _showTooltip(button, text) {
+    this._hideTooltip();
+    const label = new St.Label({style_class: 'tree-dock-tooltip', text});
+    Main.uiGroup.add_child(label);
+    this._tooltip = label;
+
+    const [x, y] = button.get_transformed_position();
+    const [, width] = label.get_preferred_width(-1);
+    const [, height] = label.get_preferred_height(-1);
+    const left = Math.floor(x + (button.get_width() - width) / 2);
+    label.set_position(left, Math.floor(y - height - TOOLTIP_GAP));
+  }
+
+  _hideTooltip() {
+    if (this._tooltip !== null) {
+      this._tooltip.destroy();
+      this._tooltip = null;
+    }
+  }
+
   _closeMenu() {
     if (this._menu !== null) {
       this._menu.close();
@@ -207,9 +332,149 @@ class TreeDock {
     }
     const [, width] = this._actor.get_preferred_width(-1);
     const [, height] = this._actor.get_preferred_height(-1);
-    const x = monitor.x + Math.floor((monitor.width - width) / 2);
-    const y = monitor.y + monitor.height - height - BOTTOM_MARGIN;
+    const {x, y} = dockPlacement(monitor, {width, height}, this._position);
     this._actor.set_position(x, y);
+    this._updateBarrier();
+  }
+
+  // Auto-hide: an edge barrier reveals the dock, and it hides again after the
+  // pointer has been away for HIDE_DELAY_MS. Without auto-hide the dock is
+  // always visible and the barrier is removed.
+  _updateBarrier() {
+    this._removeBarrier();
+    if (!this._autohide) {
+      this._cancelHide();
+      this._setVisible(true);
+      return;
+    }
+
+    const monitor = Main.layoutManager.primaryMonitor;
+    if (monitor === null) {
+      return;
+    }
+    const geometry = barrierGeometry(monitor, this._position);
+    this._barrier = new Meta.Barrier({
+      backend: global.backend,
+      x1: geometry.x1,
+      y1: geometry.y1,
+      x2: geometry.x2,
+      y2: geometry.y2,
+      directions: BARRIER_DIRECTIONS[geometry.allowed],
+    });
+    this._barrierHitId = this._barrier.connect('hit', () => this._showDock());
+    this._scheduleHide();
+  }
+
+  _removeBarrier() {
+    if (this._barrier !== null) {
+      this._barrier.disconnect(this._barrierHitId);
+      this._barrier.destroy();
+      this._barrier = null;
+      this._barrierHitId = 0;
+    }
+  }
+
+  _showDock() {
+    this._cancelHide();
+    if (this._hidden) {
+      this._setVisible(true);
+    }
+  }
+
+  _hideDock() {
+    // Keep the dock open while a menu from it is showing.
+    if (this._autohide && !this._hidden && this._menu === null) {
+      this._setVisible(false);
+    }
+  }
+
+  _scheduleHide() {
+    this._cancelHide();
+    if (!this._autohide) {
+      return;
+    }
+    this._hideTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, HIDE_DELAY_MS, () => {
+      this._hideTimeoutId = 0;
+      this._hideDock();
+      return GLib.SOURCE_REMOVE;
+    });
+  }
+
+  _cancelHide() {
+    if (this._hideTimeoutId !== 0) {
+      GLib.source_remove(this._hideTimeoutId);
+      this._hideTimeoutId = 0;
+    }
+  }
+
+  _animationsEnabled() {
+    return this._interfaceSettings.get_boolean('enable-animations');
+  }
+
+  // Icons near the pointer grow. Scaling does not change the layout, so
+  // neighbouring icons keep their places and may overlap the magnified icon.
+  _onPointerMotion(coords) {
+    if (!this._magnify || !this._animationsEnabled() || this._actor === null) {
+      return;
+    }
+    const vertical = isVerticalPosition(this._position);
+    const pointer = vertical ? coords[1] : coords[0];
+    const [originX, originY] = this._actor.get_transformed_position();
+    const origin = vertical ? originY : originX;
+
+    for (const child of this._actor.get_children()) {
+      if (!child.has_style_class_name('tree-dock-item')) {
+        continue;
+      }
+      // The allocation is in the dock's own coordinates. The pivot is the
+      // centre, so the centre does not move when the icon scales.
+      const box = child.get_allocation_box();
+      const centre = origin + (vertical ? (box.y1 + box.y2) / 2 : (box.x1 + box.x2) / 2);
+      const scale = magnificationScale(Math.abs(pointer - centre), this._iconSize * 2);
+      child.ease({
+        scale_x: scale,
+        scale_y: scale,
+        duration: MAGNIFY_MS,
+        mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+      });
+    }
+  }
+
+  _resetMagnification() {
+    if (this._actor === null) {
+      return;
+    }
+    for (const child of this._actor.get_children()) {
+      if (child.has_style_class_name('tree-dock-item')) {
+        child.ease({
+          scale_x: 1,
+          scale_y: 1,
+          duration: MAGNIFY_MS,
+          mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        });
+      }
+    }
+  }
+
+  // A hidden dock is not reactive, so the pointer reaches the barrier instead.
+  // The fade follows GNOME's enable-animations setting: with animations off the
+  // change is instant.
+  _setVisible(visible) {
+    if (this._actor === null) {
+      return;
+    }
+    this._hidden = !visible;
+    this._actor.reactive = visible;
+    const target = visible ? SHOWN_OPACITY : HIDDEN_OPACITY;
+    if (!this._animationsEnabled()) {
+      this._actor.opacity = target;
+      return;
+    }
+    this._actor.ease({
+      opacity: target,
+      duration: FADE_MS,
+      mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+    });
   }
 }
 
