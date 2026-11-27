@@ -23,6 +23,4 @@ All notable changes to TREE OS are recorded here. The format follows
   pinned and running applications, click to launch or switch, a running
   indicator, and right-click Pin/Unpin/Quit. Verified manually in an
   Ubuntu 24.04 VM on GNOME Shell 46 (Wayland).
-- Dock: unavailable pinned apps show an "is unavailable" tooltip on hover,
-  and every dock item has a text accessible description (Running, Not running
-  or Unavailable: not installed).
+- Dock: unavailable pinned apps show an "is unavailable" tooltip on hover.

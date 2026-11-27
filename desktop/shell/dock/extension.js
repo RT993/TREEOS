@@ -129,16 +129,11 @@ class TreeDock {
       reactive: true,
       child: column,
     });
-    const accessible = button.get_accessible();
-    accessible.set_name(name);
-    // The running state is conveyed in text as well as by the dot (spec: accessibility).
-    if (app === null) {
-      accessible.set_description('Unavailable: not installed');
-    } else if (isRunning) {
-      accessible.set_description('Running');
-    } else {
-      accessible.set_description('Not running');
-    }
+    button.get_accessible().set_name(name);
+    // Text accessible descriptions are not set yet. Calling set_description on
+    // the button's accessible object throws a TypeError on GNOME 46, which stops
+    // the whole extension from loading. Restore it once the correct API is
+    // confirmed in the VM.
 
     if (app === null) {
       // Dimmed by actor opacity (0-255), not CSS, so it applies reliably in St.
