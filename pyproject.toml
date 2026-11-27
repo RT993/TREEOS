@@ -10,17 +10,17 @@ dependencies = []
 [tool.ruff]
 line-length = 88
 target-version = "py312"
-src = ["tests", "framework/tree-config"]
+src = ["tests", "framework/tree-config", "framework/tree-logging"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
 
 [tool.mypy]
 strict = true
-files = ["tests", "framework/tree-config"]
-mypy_path = "framework/tree-config"
+files = ["tests", "framework/tree-config", "framework/tree-logging"]
+mypy_path = "framework/tree-config:framework/tree-logging"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["framework/tree-config"]
+pythonpath = ["framework/tree-config", "framework/tree-logging"]
 addopts = "-ra --strict-markers"
