@@ -15,3 +15,9 @@ All notable changes to TREE OS are recorded here. The format follows
 - Foundation smoke tests in `tests/unit/`.
 - `framework/tree-config`: schema-validated JSON configuration with atomic
   writes (`docs/specifications/tree-config.md`) and unit tests.
+- `framework/tree-logging`: `treeos.<component>` loggers with a fixed format
+  and secret redaction in messages and `extra=` fields
+  (`docs/specifications/tree-logging.md`) and unit tests.
+- `applications/finder`: headless TREE Finder core: read-only directory
+  listing, sorting, navigation history and breadcrumbs
+  (`docs/specifications/finder-core.md`) and unit tests. No UI yet.
